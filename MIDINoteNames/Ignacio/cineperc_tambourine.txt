@@ -1,0 +1,51 @@
+# Cinesamples CinePerc Tambourine
+
+# Pop Tambourine Large
+93 pop sm side2side
+91 pop sm side2side
+89 pop sm side2side
+88 pop sm side2side
+87 pop sm hit closed
+86 pop sm hit open
+85 pop sm hit closed
+84 pop sm hit open
+83 pop sm roll
+
+# Pop Tambourine Large
+81 pop lg side2side
+79 pop lg side2side
+77 pop lg side2side
+76 pop lg side2side
+75 pop lg hit closed
+74 pop lg hit open
+73 pop lg hit closed
+72 pop lg hit open
+71 pop lg roll
+
+# Orchestral Tambourine Small
+70 orc sm rub L
+69 orc sm side2side
+68 orc sm rub M
+67 orc sm side2side
+66 orc sm rub S
+65 orc sm side2side
+64 orc sm side2side
+63 orc sm hit closed
+62 orc sm hit open
+61 orc sm hit closed
+60 orc sm hit open
+59 orc sm roll
+
+# Orchestral Tambourine Large
+58 orc lg rub L
+57 orc lg side2side
+56 orc lg rub M
+55 orc lg side2side
+54 orc lg rub S
+53 orc lg side2side
+52 orc lg side2side
+51 orc lg hit closed
+50 orc lg hit open
+49 orc lg hit closed
+48 orc lg hit open
+47 orc lg roll

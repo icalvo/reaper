@@ -1,0 +1,73 @@
+# Cinesamples CinePerc Orchestral Percussion Ensemble
+
+107 glockenspiel top
+96 glockenspiel bottom
+
+95 tambourine hit
+94 mark tree
+93 mark tree
+
+92 large triangle hit muted
+90 small triangle hit muted
+89 small triangle hit
+
+88 20'' piatti hit HH
+87 20'' piatti hit muted
+86 20'' piatti hit
+85 19'' piatti hit HH
+84 19'' piatti hit muted
+83 19'' piatti hit
+
+82 17'' 4s cresc sticks
+81 17'' 4s cresc mallets
+80 17'' 2s cresc sticks
+79 17'' 2s cresc mallets
+78 17'' 1s cresc sticks
+77 17'' 1s cresc mallets
+76 Rake
+75 17'' hit stick
+74 17'' hit mallet
+73 18'' hit stick
+72 18'' hit mallet
+
+71 29'' gong 15s cresc
+70 29'' gong 3s cresc
+69 29'' gong 1s cresc
+68 29'' gong scrape
+67 29'' gong hit B
+66 29'' gong fx hit
+65 29'' gong hit A
+
+64 picc snare on rim
+63 picc snare off hit sticks
+62 picc snare on hit sticks
+61 picc snare off hit sticks
+60 picc snare on hit sticks
+59 concert snare on rim
+58 concert snare off hit sticks
+57 concert snare on hit sticks
+56 concert snare off hit sticks
+55 concert snare on hit sticks
+
+54 6'' concert tom hits
+53 8'' concert tom hits
+52 10'' concert tom hits
+51 13'' concert tom hits
+50 15'' concert tom hits
+49 16'' concert tom hits
+
+48 28'' bass 3 stroke hit
+47 28'' bass flam
+46 28'' bass muted hits
+45 28'' bass hits
+44 28'' bass muted hits
+43 28'' bass hits
+41 36'' bass 3 stroke hit
+40 36'' bass flam
+39 36'' bass muted hits
+38 36'' bass hits
+37 36'' bass muted hits
+36 36'' bass hits
+
+35 tubular bells top
+24 tubular bells bottom

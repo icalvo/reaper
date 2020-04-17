@@ -1,0 +1,20 @@
+# Cinesamples CinePerc Timpani FX
+
+99 shell hits top
+72 shell hits bottom
+
+71 fx rep gliss up
+69 roll glissando up/down
+67 hit gliss down
+66 hit gliss down
+65 hit gliss down
+64 hit gliss down
+63 hit gliss up/down
+62 hit gliss up
+61 hit gliss up
+60 hit gliss up
+59 superball fx top
+53 superball fx bottom
+
+52 hand stop top
+24 hand stop bottom

@@ -1,0 +1,11 @@
+# Cinesamples CinePerc Timpani - Soft/Medium/Hard Mallets
+# Cinesamples CinePerc Timpani Cresc - Soft/Medium/Hard Mallets
+
+104 right hits top
+84 right hits bottom
+
+72 left hits top
+48 left hits bottom
+
+47 rolls looped CC dyn top
+24 rolls looped CC dyn top

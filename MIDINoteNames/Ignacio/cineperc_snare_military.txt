@@ -1,0 +1,29 @@
+# Cinesamples CinePerc Snare Military
+88 off brush flam
+86 off brush hits
+84 off brush hits
+83 off brush roll
+81 off brush dead stroke
+79 off stick hit
+76 off flam
+75 off rim
+74 off hits
+73 off rim
+72 off hits
+71 off roll
+69 off dead stroke
+67 on stick hit
+64 on flam
+63 on rim
+62 on hits
+61 on rim
+60 on hits
+59 on roll
+57 on dead stroke
+53 on brush flam
+52 on brush hits
+50 on brush hits
+48 on brush roll
+47 on brush dead stroke
+45 on stick hit
+

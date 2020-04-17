@@ -1,0 +1,37 @@
+# Cinesamples CinePerc Snare Concert
+
+89 off brush ruff
+88 off brush flam
+87 off brush rim
+86 off brush hits
+85 off brush rim
+84 off brush hits
+83 off brush roll
+82 off brush swirl
+76 off flam
+75 off rim
+74 off hits
+73 off rim
+72 off hits
+71 off roll
+70 off roll no end
+69 off dead stroke
+68 stick on stick
+66 stick on stick
+64 on flam
+63 on rim
+62 on hits
+61 on rim
+60 on hits
+59 on roll
+58 on roll no end
+57 on dead stroke
+53 on brush ruff
+52 on brush flam
+51 on brush rim
+50 on brush hits
+49 on brush rim
+48 on brush hits
+47 on brush roll
+46 on brush swirl
+45 on brush swirl short

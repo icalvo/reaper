@@ -1,0 +1,525 @@
+<html>
+<head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+     <!-- Development version, includes helpful console warnings -->
+    <script src="https://cdn.jsdelivr.net/npm/vue/dist/vue.js"></script>
+    <script src="../main.js"></script>
+    <script src="https://code.jquery.com/jquery-3.4.1.slim.min.js" integrity="sha384-J6qa4849blE2+poT4WnyKhv5vZF5SrPo0iEjwBvKU7imGFAV0wwj1yYfoRSJoZ+n" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js" integrity="sha384-Q6E9RHvbIyZFJoft+2mJbHaEWldlvI9IOYy5n3zV9zzTtmI3UksdQRVvoxMfooAo" crossorigin="anonymous"></script>
+
+    <style>
+        .active {
+            background-color: red;
+        }
+
+        .selected input {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="container">
+        <h2 id="position">{{ transport_text }}: {{ time_str }}</h2>
+
+        <div id="transport" class="btn-toolbar" role="toolbar" aria-label="Toolbar with button groups">
+            <div class="btn-group mr-2" role="group" aria-label="First group">
+                <button :class="{ active: is_play }" class="btn btn-primary">Play</button>
+                <button :class="{ active: is_pause }" class="btn btn-primary">Pause</button>
+                <button :class="{ active: is_pause }" class="btn btn-primary">Stop</button>
+                <button :class="{ active: is_rec }" class="btn btn-primary">Rec</button>
+            </div>
+            <div class="btn-group mr-2" role="group" aria-label="Second group">
+                <button :class="{ active: metronome }" class="btn btn-primary">Metr</button>
+              <button type="button" class="btn btn-secondary">6</button>
+              <button type="button" class="btn btn-secondary">7</button>
+            </div>
+            <div class="btn-group" role="group" aria-label="Third group">
+              <button type="button" class="btn btn-secondary">8</button>
+            </div>
+          </div>
+        <div id="tracks">
+            <div class="track input-group input-group-sm" v-for="track in tracks" :key="track.index" :class="{ selected: track.is_selected }">
+                <div class="input-group-prepend">
+                    <span class="input-group-text" id="inputGroup-sizing-sm" v-if="track.is_folder">Fol</span>
+                </div>
+                <input type="text" class="form-control" v-model="track.name_to_show" :style="{ backgroundColor: track.color, color: track.fore_color }" />
+                <div class="input-group-append">
+                    <span class="input-group-text" id="inputGroup-sizing-sm">{{ track.volume }}</span>
+                    <span class="input-group-text" id="inputGroup-sizing-sm">{{ track.pan }}</span>
+                    <span class="input-group-text" id="inputGroup-sizing-sm">{{ track.last_meter_peak }}</span>
+                    <span class="input-group-text" id="inputGroup-sizing-sm">{{ track.last_meter_pos }}</span>
+                    <span class="input-group-text" id="inputGroup-sizing-sm">{{ track.panmode }}</span>
+                    <button :class="{ disabled: !track.is_record_monitoring_on }" class="btn btn-primary" type="button">Mon</button>
+                    <button :class="{ disabled: !track.is_record_armed }" class="btn btn-primary" type="button">R</button>
+                    <button :class="{ disabled: !track.is_mute }" class="btn btn-danger" type="button">M</button>
+                    <button :class="{ disabled: !track.is_solo }" class="btn btn-primary" type="button">S</button>
+                  </div>
+                  <!-- <div class="sends" v-for="send in track.sends">
+                    <div>Send {{ send.index }}:</div>
+                </div> -->
+            </div>
+        </div>
+    </div>
+    <script>
+        const ACTION_METRONOME = 40364;
+        const ACTION_PREROLL = 41819;
+        const ACTION_SOLO_IN_FRONT = 40745;
+        const ACTION_BYPASS_ALL_FX = 40344;
+        const ACTION_REC_MODE_NORMAL = 40252;
+        const ACTION_REC_MODE_TIME_SELECTION_PUNCH = 40076;
+        const ACTION_REC_MODE_ITEM_PUNCH = 40253;
+        const ACTION_NEW_REC_MODE_DEFAULT = 41330;
+        const ACTION_NEW_REC_MODE_TAPE = 41186;
+        const ACTION_NEW_REC_MODE_LAYERS = 41329;
+                
+        var app = new Vue({
+            el: '#app',
+            data: {
+                transport_state: 0,
+                tracks: [],
+                number_of_tracks: 0,
+                out_states: [-1, -1],
+                time_str: "",
+                metronome: false,
+                preroll: false,
+                solo_in_front: false,
+                track_count: 0,
+                g_inspect_tridx: -1,
+                repeat: false,
+                recmode_normal: false,
+                recmode_item_punch: false,
+                recmode_selection_punch: false,
+                newrec_default: false,
+                newrec_tape: false,
+                newrec_layers: false,
+                bypass_fx: false,
+                punch: "",
+
+                minvol: -100,
+                maxvol: 24,
+            },
+            computed: {
+                is_play: function() { return this.transport_state & 1 },
+                is_pause: function() { return this.transport_state & 2 },
+                is_rec: function() { return this.transport_state & 4 },
+                transport_text: function() { 
+                    switch (parseInt(this.transport_state)) {
+                        case 0: return "Stop";
+                        case 1: return "Play";
+                        case 2: return "Pause";
+                        case 5: return "Rec";
+                        case 6: return "Rec Pause";
+                    }
+                }
+            },
+            created: function() {
+                wwr_req_recur("TRANSPORT", 1000);
+                wwr_req_recur([
+                    "NTRACK",
+                    "TRACK",
+                    "GET/TRACK/0/SEND/0",
+                    "GET/TRACK/0/SEND/1",
+                    "GET/" + ACTION_METRONOME,
+                    "GET/" + ACTION_PREROLL,
+                    "GET/" + ACTION_SOLO_IN_FRONT,
+                    "GET/" + ACTION_BYPASS_ALL_FX,
+                    "GET/" + ACTION_REC_MODE_NORMAL,
+                    "GET/" + ACTION_REC_MODE_TIME_SELECTION_PUNCH,
+                    "GET/" + ACTION_REC_MODE_ITEM_PUNCH,
+                    "GET/" + ACTION_NEW_REC_MODE_DEFAULT,
+                    "GET/" + ACTION_NEW_REC_MODE_TAPE,
+                    "GET/" + ACTION_NEW_REC_MODE_LAYERS,
+                    ].join(";")
+                    , 1000);" + "
+                wwr_start();
+            }
+        });
+
+        function wwr_onreply(results) {
+            var result = results.split("\n");
+            for (var x = 0; x < result.length; x++) {
+                var tokens = result[x].split("\t");
+                if (tokens.length <= 0) return;
+
+                switch (tokens[0]) {
+                case "TRANSPORT":
+                    if (tokens.length <= 5) break;
+                    app.transport_state = tokens[1];
+                    app.repeat = tokens[3];
+                    app.time_str = tokens[4];
+                    break;
+                case "NTRACK":
+                    if (tokens.length < 2 || tokens[1] < 0) break;
+                    app.track_count = parseInt(tokens[1]) + 1;
+                    break;                    
+                case "TRACK":
+                    // TRACK tracknumber trackname trackflags volume pan last_meter_peak last_meter_pos width/pan2 panmode sendcnt recvcnt hwoutcnt color
+                    const TRACK_FOLDER = 1;
+                    const TRACK_SELECTED = 2;
+                    const TRACK_HAS_FX = 4;
+                    const TRACK_MUTE = 8;
+                    const TRACK_SOLO = 16;
+                    const TRACK_SOLO_IN_PLACE = 32;
+                    const TRACK_RECORD_ARMED = 64;
+                    const TRACK_RECORD_MONITORING_ON = 128;
+                    const TRACK_RECORD_MONITORING_AUTO = 256;
+
+                    const trackIndex = parseInt(tokens[1]);
+                    app.tracks.splice(trackIndex, 1, {
+                        index: trackIndex,
+                        name: tokens[2],
+                        name_to_show: trackIndex + ". " + tokens[2],
+                        is_folder: tokens[3] & TRACK_FOLDER,
+                        is_selected: tokens[3] & TRACK_SELECTED,
+                        has_fx: tokens[3] & TRACK_HAS_FX,
+                        is_mute: tokens[3] & TRACK_MUTE,
+                        is_solo: tokens[3] & TRACK_SOLO,
+                        is_solo_in_place: tokens[3] & TRACK_SOLO_IN_PLACE,
+                        is_record_armed: tokens[3] & TRACK_RECORD_ARMED,
+                        is_record_monitoring_on: tokens[3] & TRACK_RECORD_MONITORING_ON,
+                        is_record_monitoring_auto: tokens[3] & TRACK_RECORD_MONITORING_AUTO,
+                        volume: mkvolstr(tokens[4]),
+                        pan: mkpanstr(tokens[5]),
+                        last_meter_peak: mkvolstr(tokens[6]),
+                        last_meter_pos: mkvolstr(tokens[7]),
+                        width_pan2: tokens[8],
+                        panmode: tokens[9],
+                        receives_count: tokens[10],
+                        sends_count: tokens[11],
+                        hardware_outs_count: tokens[12],
+                        color: tokens[13] === "0" ? null : "#" + parseInt(tokens[13]).toString(16).substring(1),
+                        fore_color: tokens[13] === "0" ? null : "white",
+                        sends: [] });
+                    break;
+                case "CMDSTATE":
+
+                    switch (tokens[1]) {
+                    case ACTION_METRONOME:
+                        app.metronome = tokens[2] > 0;
+                        // if (g_inspect_tridx == 0)
+                        // document.getElementById("trackinspect_clone").innerHTML =
+                        //     metronome
+                        //     ? "<img src='wri_img/master_metron_on.png'>"
+                        //     : "<img src='wri_img/master_metron_off.png'>";
+                        // document.getElementById("button_metronome").src =
+                        // metronome
+                        //     ? "wri_img/button_metronome_on.png"
+                        //     : "wri_img/button_metronome.png";
+                        break;
+                    case ACTION_PREROLL:
+                        app.preroll = tokens[2] > 0;
+                        // document.getElementById("button_preroll").src = preroll ? "wri_img/button_preroll_on.png" : "wri_img/button_preroll.png"; //cambia img del preroll nei button
+                        break;
+                    case ACTION_SOLO_IN_FRONT:
+                        app.solo_in_front = tokens[2] > 0;
+                        // document.getElementById("button_soloinfront").src = solo_in_front ? "wri_img/button_solo_front_on.png" : "wri_img/button_solo_front.png"; //cambia img del solo in front nei button
+                        break;
+                    case ACTION_BYPASS_ALL_FX:
+                        app.bypass_fx = tokens[2] > 0;
+                        // document.getElementById("button_bypass_fx").src = bypass_fx ? "wri_img/button_fx_bypass_on.png" : "wri_img/button_fx_bypass.png"; //cambia img di bypass fx nei button
+                        break;
+                    case ACTION_REC_MODE_NORMAL:
+                        app.recmode_normal = tokens[2] > 0;
+                        // document.getElementById("recmode_normal").innerHTML = recmode_normal ? "<img src='wri_img/check_mark.png' align='top'>Normal" : "<img src='wri_img/blank.png' align='top'>Normal";
+                        // if (recmode_normal = tokens[2] > 0) {
+                        //     document.getElementById("rec").src = "wri_img/rec_off.png";
+                        //     document.getElementById("big_rec").src = "wri_img/big_transport_rec_off.png";
+                        //     punch = "no";
+                        // }
+                        break;
+                    case ACTION_REC_MODE_TIME_SELECTION_PUNCH:
+                        app.recmode_selection_punch = tokens[2] > 0;
+                        // document.getElementById("recmode_selection_punch").innerHTML = recmode_selection_punch ? "<img src='wri_img/check_mark.png' align='top'>Time Selection auto-punch" : "<img src='wri_img/blank.png' align='top'>Time Selection auto-punch";
+                        // if (recmode_selection_punch = tokens[2] > 0) {
+                        //     document.getElementById("rec").src = "wri_img/rec_off_punch_time.png";
+                        //     document.getElementById("big_rec").src = "wri_img/big_transport_rec_off_punch_time.png";
+                        //     punch = "time";
+                        // }
+                        break;
+
+                    case ACTION_REC_MODE_ITEM_PUNCH:
+                        app.recmode_item_punch = tokens[2] > 0;
+                        // document.getElementById("recmode_item_punch").innerHTML = recmode_item_punch ? "<img src='wri_img/check_mark.png' align='top'>Item auto-punch" : "<img src='wri_img/blank.png' align='top'>Item auto-punch";
+                        // if (recmode_item_punch = tokens[2] > 0) {
+                        //     document.getElementById("rec").src = "wri_img/rec_off_punch_item.png";
+                        //     document.getElementById("big_rec").src = "wri_img/big_transport_rec_off_punch_item.png";
+                        //     punch = "item";
+                        // }
+                        break;
+
+                    case ACTION_NEW_REC_MODE_DEFAULT:
+                        app.newrec_default = tokens[2] > 0;
+                        // document.getElementById("newrec_default").innerHTML = newrec_default ? "<img src='wri_img/check_mark.png' align='top'>Split items (default)" : "<img src='wri_img/blank.png' align='top'>Split items (default)";
+                        break;
+
+                    case ACTION_NEW_REC_MODE_TAPE:
+                        app.newrec_tape = tokens[2] > 0;
+                        // document.getElementById("newrec_tape").innerHTML = newrec_tape ? "<img src='wri_img/check_mark.png' align='top'>Overwrite (tape mode)" : "<img src='wri_img/blank.png' align='top'>Overwrite (tape mode)";
+                        break;
+
+                    case ACTION_NEW_REC_MODE_LAYERS:
+                        app.newrec_layers = tokens[2] > 0;
+                        // document.getElementById("newrec_layers").innerHTML = newrec_layers ? "<img src='wri_img/check_mark.png' align='top'>Separate lanes (layers)" : "<img src='wri_img/blank.png' align='top'>Separate lanes (layers)";
+                        break;
+                    }
+
+                    break;
+
+
+                case "SEND":
+                    var trackidx = parseInt(tokens[1]);
+                    var sendidx = parseInt(tokens[2]);
+                    if (app.tracks[trackidx]) {
+                        Vue.set(app.tracks[trackidx].sends, sendidx, {
+                            track_index: trackidx,
+                            index: sendidx,
+                            is_muted: (tokens[3] & 8),
+                            volume: tokens[4],
+                            pan: tokens[5],
+                            target_track_index: tokens[6]
+                        });
+                    }
+                    break;
+
+
+                // case "TRACK":
+                //     if (tokens.length < 6) break;
+                //     var host = document.getElementById("tracks");
+                //     var tidx = parseInt(tokens[1]);
+                //     if ((!host || tidx >= 200)) break;
+                //     var addtop = host.rows.length;
+                //     while (addtop <= tidx) {
+                //     var row = host.insertRow(addtop);
+                //     last_titles[addtop] = null;
+                //     last_flags[addtop] = null;
+                //     last_vols[addtop] = null;
+                //     last_pans[addtop] = null;
+                //     last_peak[addtop] = null;
+                //     last_meter[addtop] = null;
+
+                //     if (!(tokens[3] & 512) || addtop == 0) { //inserito IF per check delle tracce nascoste ('or addtop == 0' lo inserisco per visualizzare la master track anche se � settata come non visibile. Questo perch� se non mostra la traccia master fa casino con la visualizzazione in track inspect). Vedi anche sotto alla fine del ciclo while
+
+                //         var cell = row.insertCell(0);
+                //         if (addtop == 0) {  // se traccia master mostro con qualche differenza
+                //         cell.className = "mastertrack";
+                //         } else {
+                //         cell.className = "tracklbl";
+                //         }
+                //         cell.onmousedown = inspect_track_handler(addtop);
+                //         cell.appendChild(document.createElement('div'));
+                //         var div = document.createElement('div');
+                //         div.className = "trackinfo";
+                //         cell.appendChild(div);
+
+                //         cell = row.insertCell(1);
+                //         cell.className = "MeterCell";
+
+
+                //         cell = row.insertCell(2);
+                //         cell.className = "trackbut";
+                //         if (addtop > 0) {
+                //         cell.innerHTML = "ARM"; //contenuto cella ARM in mixer
+                //         cell.onmousedown = mouseDownEventHandler("SET/TRACK/" + addtop + "/RECARM/-1;TRACK/" + addtop);
+                //         } else {
+                //         // **** GESTIONE MAIN OUT IN MASTER TRACK PER ORA ELIMINATO. VEDI ANCHE SOPRA ALLA VOCE 'GESTIONE MAIN OUT'
+                //         //			    cell.innerHTML = "<img src='wri_img/main_out_on.png'>"; //contenuto cella main out di Master in Track view 
+                //         //				//cell.style.backgroundImage = "url('wri_img/cell_bckgrnd_buttons.jpg')"
+                //         //                cell.onmousedown = mouseDownEventHandler("SET/TRACK/0/SEND/0/MUTE/-1;GET/TRACK/0/SEND/0");
+                //         //                cell.innerHTML = "main<br>out";
+                //         //                cell.onmousedown = mouseDownEventHandler("SET/TRACK/0/SEND/0/MUTE/-1;GET/TRACK/0/SEND/0");
+                //         }
+
+                //         cell = row.insertCell(3);
+                //         cell.className = "trackbut";
+                //         if (addtop > 0) {
+                //         cell.innerHTML = "mon";
+                //         cell.onmousedown = mouseDownEventHandler("SET/TRACK/" + addtop + "/RECMON/-1;TRACK/" + addtop); //cambia monitor on click sulla cella. Si pu� modificare per resettare il clip
+                //         } else {
+                //         //cell.innerHTML = "<img src='wri_img/aux_out_1.png'>"; //contenuto cella aux out di Master in mixer
+                //         //cell.onmousedown = mouseDownEventHandler("SET/TRACK/0/SEND/1/MUTE/-1;GET/TRACK/0/SEND/1");
+                //         //cell.innerHTML = "<img src='wri_img/main_out_1.png'>"; //contenuto cella main out di Master in mixer 
+                //         //cell.style.backgroundImage = "url('wri_img/cell_bckgrnd_buttons.jpg')"
+                //         //cell.onmousedown = mouseDownEventHandler("SET/TRACK/0/SEND/0/MUTE/-1;GET/TRACK/0/SEND/0");
+                //         }
+
+                //         cell = row.insertCell(4);
+                //         cell.className = "trackbut";
+                //         cell.innerHTML = "mute";
+                //         cell.onmousedown = mouseDownEventHandler("SET/TRACK/" + addtop + "/MUTE/-1;TRACK/" + addtop);
+
+
+                //         cell = row.insertCell(5);  //Aggiunta per SOLO in mixer
+                //         cell.className = "trackbut";
+                //         cell.innerHTML = "Solo";
+                //         cell.onmousedown = mouseDownEventHandler("SET/TRACK/" + addtop + "/SOLO/-1;TRACK/" + addtop);
+
+
+                //     }		//stop check tracce nascoste
+                //     addtop++;
+                //     }
+
+
+                //     if (!(tokens[3] & 512) || tidx == 0) {	//riprendo il check delle tracce nascoste. ('or tidx == 0' lo inserisco per visualizzare la master track anche se � settata come non visibile. Questo perch� se non mostra la traccia master fa casino con la visualizzazione in track inspect). Vedi anche sopra all'inizio del ciclo While di addtop
+
+                //     host = host.rows[tidx];
+                //     if (host) {
+                //         if (tidx > 0) tokens[2] = tidx + "." + tokens[2].substring(0, 12);  //TRACK NAME - FB aggiunto '.substring(0,12)' per limitare lunghezza nome traccia
+                //         if (tokens[2] != last_titles[tidx]) {
+                //         setTextForObject(host.cells[0].childNodes[0], last_titles[tidx] = tokens[2]);
+                //         if (g_inspect_tridx == tidx)
+                //             setTextForObject(document.getElementById("trackinspect_title"), tokens[2]);
+                //         }
+                //         if (tokens[4] != last_vols[tidx] || tokens[5] != last_pans[tidx] || tokens[6] != last_peak[tidx] || tokens[7] != last_meter[tidx]) {
+                //         last_vols[tidx] = tokens[4];
+                //         last_pans[tidx] = tokens[5];
+                //         last_peak[tidx] = tokens[6];
+                //         last_meter[tidx] = tokens[7];
+
+
+                //         // ---- si ripete sotto. verificare se possibile inserire in una sola routine. Duplicato qui perch� sotto non prende il clip. Se solo sopra non prende i cambi di FX e Select. 
+                //         var c = host.cells[3];
+                //         c.style.textAlign = 'left';
+
+                //         var led1 = (tokens[3] & 4) ? "<img src='wri_img/green_led_on.png' align='top'> FX<br>" : "<img src='wri_img/green_led_off.png' align='top'> FX<br>";
+                //         if (tidx > 0) { //se non master track
+                //             switch (tokens[3] & 384) {
+                //             case 128: var led2 = "<img src='wri_img/green_led_on.png' align='top'> Mnt<br>"; //led monitor in mixer (condizioni varie)
+                //                 break;
+                //             case 256: var led2 = "<img src='wri_img/yellow_led_on.png' align='top'> Mnt<br>";
+                //                 break;
+                //             default: var led2 = "<img src='wri_img/yellow_led_off.png' align='top'>  Mnt<br>";
+                //                 break;
+                //             }
+                //         } else {
+                //             var led2 = ""
+                //         }
+                //         var led3 = (tokens[6] > 0) ? "<img src='wri_img/red_led_on.gif' align='top' onclick='wwr_req(40527);'> Clip" : "<img src='wri_img/red_led_off.png' align='top'> Clip";
+                //         c.innerHTML = "<font size ='2' color='#cccccc'>" + led1 + led2 + led3 + "</font>";
+                //         // -------------------------
+
+                //         if (g_inspect_tridx == tidx) { //ESEGUE SE LA TRACCIA E' QUELLA APERTA IN TRACK INSPECT
+                //             var volf = document.getElementById("trackinspect_volf");
+                //             var volh = document.getElementById("trackinspect_volh");
+                //             setTextForObject(volh, mkvolstr(tokens[4]));
+
+                //             var vol = parseFloat(tokens[4]);
+                //             vol = vol < 0.0000001 ? -150 : Math.log(vol) * 8.68588963806;
+                //             if (vol < minvol) vol = minvol;
+                //             if (vol > maxvol) vol = maxvol;
+
+                //             var h = volf.offsetHeight - volh.offsetHeight;
+                //             if (h < 10) h = 10;
+                //             volh.style.top = Math.floor(volf.offsetTop + h * (maxvol - vol) / (maxvol - minvol)) + "px";
+                //         }
+
+
+                //         // Stampo Volume, Pan e Peak sulle tracce
+                //         setTextForObject(host.cells[0].childNodes[1], mkvolstr(tokens[4]) + " " + mkpanstr(tokens[5]) + " " + mkpeakstr(tokens[6]));   //aggiunto "mkpeakstr(tokens[6]" per last_peak
+                //         if (tidx == 0) setTextForObject(host.cells[0].childNodes[0], "Master"); //non mi piaceva MASTER in maiuscolo
+
+
+                //         // TRACK METERS ****
+                //         var meter_value = (tokens[7] > 0) ? 0 : (Math.log((tokens[7]) * -1) * 8)
+                //         if (meter_value > 60) meter_value = 60; //massima altezza meter non deve superare massima altezza cella
+                //         if (meter_value < -60) meter_value = -60;  //minima altezza meter
+                //         host.cells[1].innerHTML = "<img src='wri_img/meter.jpg' height='" + meter_value + "px' width='4px' style='opacity: 0.9;'>";
+
+                //         if (g_inspect_tridx == tidx) {  //ESEGUE SE LA TRACCIA E' QUELLA APERTA IN TRACK INSPECT (ALTRIMENTI MOSTREREBBE IL VALORE DI TUTTE LE TRACCE)
+                //             // TRACK INSPECT METER ****
+                //             if (meter_value > 55) meter_value = 65; //per coprire interamente la barra
+                //             document.getElementById("trackinspect_meter_clip").innerHTML = (tokens[6] > 0) ? "<img src='wri_img/red_led_on.gif' align='top' onclick='wwr_req(40527);'>" : "<img src='wri_img/red_led_off.png' align='top'>";
+                //             document.getElementById("trackinspect_meter").innerHTML = "<img src='wri_img/meter.jpg' height='16px' width='" + meter_value * 3 + "px' style='opacity: 0.9;'>";
+                //             document.getElementById("trackinspect_show_peak").innerHTML = mkpeakstr(tokens[6]) + "&nbsp;&nbsp;&nbsp;&nbsp;"
+
+
+                //             //PAN track inspect
+                //             //document.getElementById("trackinspect_pancenter").innerHTML =  "<img src='wri_img/track_inspect_pan_center.png'>" + mkpanstr(tokens[5]) //FB aggiunto per visualizzare valore PAN su tasto pan center di track inspect - USO PERO' LA GRAFICA QUI SOTTO relativa al potenziometro che gira
+                //             document.getElementById("trackinspect_pancenter").innerHTML = "<img src='wri_img/inspect_pan_knob.png' height='35' width='35' style='transform: rotate(" + (tokens[5] * 150) + "deg)'>" // potenz del pan che ruota.
+                //             document.getElementById("trackinspect_panvalue").innerHTML = "PAN: " + mkpanstr(tokens[5]);
+                //         }
+
+
+                //         }
+                //         if (tokens[3] != last_flags[tidx]) {
+                //         last_flags[tidx] = tokens[3];
+                //         if (tidx > 0) {
+                //             host.cells[2].innerHTML = (tokens[3] & 64) ? "<img src='wri_img/arm_on.png'>" : "<img src='wri_img/arm_off.png'>"; //Immagine cella Arm in mixer
+                //         }
+
+                //         // ripetuto. Vedi sopra
+                //         var c = host.cells[3];
+                //         c.style.textAlign = 'left';
+                //         var led1 = (tokens[3] & 4) ? "<img src='wri_img/green_led_on.png' align='top'> FX<br>" : "<img src='wri_img/green_led_off.png' align='top'> FX<br>";
+                //         if (tidx > 0) { //se non master track
+                //             switch (tokens[3] & 384) {
+                //             case 128: var led2 = "<img src='wri_img/green_led_on.png' align='top'> Mnt<br>"; //led monitor in mixer (condizioni varie)
+                //                 break;
+                //             case 256: var led2 = "<img src='wri_img/yellow_led_on.png' align='top'> Mnt<br>";
+                //                 break;
+                //             default: var led2 = "<img src='wri_img/yellow_led_off.png' align='top'>  Mnt<br>";
+                //                 break;
+                //             }
+                //         } else {
+                //             var led2 = ""
+                //         }
+                //         var led3 = (tokens[6] > 0) ? "<img src='wri_img/red_led_on.gif' align='top' onclick='wwr_req(40527);'> Clip" : "<img src='wri_img/red_led_off.png' align='top'> Clip";
+                //         c.innerHTML = "<font size ='2' color='#cccccc'>" + led1 + led2 + led3 + "</font>";
+
+
+                //         var c = host.cells[4]; //cella mute in mixer
+                //         c.innerHTML = (tokens[3] & 8) ? "<img src='wri_img/mute_on.png'>" : "<img src='wri_img/mute_off.png'>";
+
+
+                //         var c = host.cells[5]; //Aggiunta per SOLO in mixer
+                //         c.innerHTML = (tokens[3] & 16) ? "<img src='wri_img/solo_on.png'>" : "<img src='wri_img/solo_off.png'>";
+
+
+                //         host.cells[0].style.backgroundImage = (tokens[3] & 2) ? ((tokens[3] & 1) ? "url('wri_img/cell_bckgrnd_folder_select.jpg')" : "url('wri_img/cell_bckgrnd_select.jpg')") : ((tokens[3] & 1) ? "url('wri_img/cell_bckgrnd_folder.jpg')" : "url('wri_img/cell_bckgrnd.jpg')"); //if nidificato verifica se traccia selezionata e se folder track 
+                //         //	host.cells[0].style.backgroundImage = (tokens[3] & 1) ?  "url('wri_img/cell_bckgrnd_folder.jpg')" : "url('wri_img/cell_bckgrnd.jpg')"; //FOLDER CHECK
+
+
+                //         if (g_inspect_tridx == tidx) {
+                //             if (tidx > 0) {
+                //             c = document.getElementById("trackinspect_arm");
+                //             c.style.backgroundImage = (tokens[3] & 64) ? "url('wri_img/track_inspect_button_1.jpg')" : "url('wri_img/track_inspect_button_1.jpg')";
+                //             c.innerHTML = (tokens[3] & 64) ? "<img src='wri_img/track_inspect_arm_on.png'>" : "<img src='wri_img/track_inspect_arm.png'>";  //cella arm in Track Inspect 
+
+                //             c = document.getElementById("trackinspect_mon");
+                //             switch (tokens[3] & 384) {
+                //                 case 128: c.innerHTML = "<img src='wri_img/track_inspect_monitor_on.png'>"; c.style.backgroundImage = "url('wri_img/track_inspect_button_2.jpg')"; break; //cella monitor in Track Inspect 
+                //                 case 256: c.innerHTML = "<img src='wri_img/track_inspect_monitor_aut.png'>"; c.style.backgroundImage = "url('wri_img/track_inspect_button_2.jpg')"; break;
+                //                 default: c.innerHTML = "<img src='wri_img/track_inspect_monitor_off.png'>"; c.style.backgroundImage = "url('wri_img/track_inspect_button_2.jpg')"; break;
+                //             }
+                //             }
+
+                //             c = document.getElementById("trackinspect_mute");  //cella mute in Track Inspect 
+                //             c.style.backgroundImage = (tokens[3] & 8) ? "url('wri_img/track_inspect_button_1.jpg')" : "url('wri_img/track_inspect_button_1.jpg')";
+                //             c.innerHTML = (tokens[3] & 8) ? "<img src='wri_img/track_inspect_mute_on.png'>" : "<img src='wri_img/track_inspect_mute.png'>";
+
+                //             c = document.getElementById("trackinspect_solo");
+                //             c.style.backgroundImage = (tokens[3] & 16) ? "url('wri_img/track_inspect_button_2.jpg')" : "url('wri_img/track_inspect_button_2.jpg')";
+                //             c.innerHTML = (tokens[3] & 16) ? "<img src='wri_img/track_inspect_solo_on.png'>" : "<img src='wri_img/track_inspect_solo.png'>";
+
+                //             c = document.getElementById("trackinspect_sel");                                                       // cambia il pulsante SELECT in Track Instect
+                //             c.style.background = (tokens[3] & 2) ? "url('wri_img/track_inspect_button_3.jpg')" : "url('wri_img/track_inspect_button_3.jpg')";
+                //             c.innerHTML = (tokens[3] & 2) ? "<img src='wri_img/track_inspect_select_on.png'>" : "<img src='wri_img/track_inspect_select.png'>";
+
+                //             c = document.getElementById("trackinspect_fx");                                                       // cambia il pulsante FX in Track Instect
+                //             c.style.background = (tokens[3] & 4) ? "url('wri_img/track_inspect_button_3.jpg')" : "url('wri_img/track_inspect_button_3.jpg')";
+                //             c.innerHTML = (tokens[3] & 4) ? "<img src='wri_img/track_inspect_fx_on.png'>" : "<img src='wri_img/track_inspect_fx.png'>";
+
+                //         }
+                //         }  //Fine check tracce nascoste
+                //     }
+                //     }
+                
+
+                //     break;
+                }
+            }
+            }
+
+
+    </script>
+</body>
+</html>
